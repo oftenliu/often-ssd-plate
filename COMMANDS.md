@@ -331,3 +331,10 @@ python eval_image_classifier.py \
     --dataset_name=imagenet \
     --dataset_split_name=validation \
     --model_name=dception
+
+
+
+
+python3 train_ssd_network.py     --train_dir=./log1/     --dataset_dir=./ccpd_tfrecord/     --dataset_name=pascalvoc_2012-dataset_split_name=train     --model_name=ssd_300_vgg        --save_summaries_secs=60     --save_interval_secs=600     --weight_decay=0.0005     --optimizer=adam     --learning_rate=0.001
+
+python3 tf_convert_data.py --dataset_name=pascalvoc --dataset_dir=../platedata/train/ --output_name=ccpd_train --output_dir=./ccpd_tfrecord

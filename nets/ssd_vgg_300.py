@@ -99,24 +99,30 @@ class SSDNet(object):
         feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
         anchor_size_bounds=[0.15, 0.90],
         # anchor_size_bounds=[0.20, 0.90],
-        anchor_sizes=[(21., 45.),
-                      (45., 99.),
-                      (99., 153.),
-                      (153., 207.),
-                      (207., 261.),
-                      (261., 315.)],
+        anchor_sizes = [(9., 24.),
+                      (24., 72.),
+                      (72., 120.),
+                      (120., 168.),
+                      (168., 216.),
+                      (216., 254.)],        
+        # anchor_sizes=[(21., 45.),
+        #               (45., 99.),
+        #               (99., 153.),
+        #               (153., 207.),
+        #               (207., 261.),
+        #               (261., 315.)],
         # anchor_sizes=[(30., 60.),
         #               (60., 111.),
         #               (111., 162.),
         #               (162., 213.),
         #               (213., 264.),
         #               (264., 315.)],
-        anchor_ratios=[[2, .5],
+        anchor_ratios=[[2, .5, 3],
                        [2, .5, 3, 1./3],
                        [2, .5, 3, 1./3],
                        [2, .5, 3, 1./3],
-                       [2, .5],
-                       [2, .5]],
+                       [2, .5, 3],
+                       [2, .5, 3]],
         anchor_steps=[8, 16, 32, 64, 100, 300],
         anchor_offset=0.5,
         normalizations=[20, -1, -1, -1, -1, -1],
@@ -339,35 +345,35 @@ def ssd_anchor_one_layer(img_shape,
     y = np.expand_dims(y, axis=-1)
     x = np.expand_dims(x, axis=-1)
 
-    # # Compute relative height and width.
-    # # Tries to follow the original implementation of SSD for the order.
-    # num_anchors = len(sizes) + len(ratios)
-    # h = np.zeros((num_anchors, ), dtype=dtype)
-    # w = np.zeros((num_anchors, ), dtype=dtype)
-    # # Add first anchor boxes with ratio=1.
-    # h[0] = sizes[0] / img_shape[0]
-    # w[0] = sizes[0] / img_shape[1]
-    # di = 1
-    # if len(sizes) > 1:
-    #     h[1] = math.sqrt(sizes[0] * sizes[1]) / img_shape[0]
-    #     w[1] = math.sqrt(sizes[0] * sizes[1]) / img_shape[1]
-    #     di += 1
-    # for i, r in enumerate(ratios):
-    #     h[i+di] = sizes[0] / img_shape[0] / math.sqrt(r)
-    #     w[i+di] = sizes[0] / img_shape[1] * math.sqrt(r)
-    # return y, x, h, w
-
     # Compute relative height and width.
     # Tries to follow the original implementation of SSD for the order.
-    #适配二分类　减少anchorbox数量
-    num_anchors = len(ratios)
+    num_anchors = len(sizes) + len(ratios)
     h = np.zeros((num_anchors, ), dtype=dtype)
     w = np.zeros((num_anchors, ), dtype=dtype)
-    di = 0
+    # Add first anchor boxes with ratio=1.
+    h[0] = sizes[0] / img_shape[0]
+    w[0] = sizes[0] / img_shape[1]
+    di = 1
+    if len(sizes) > 1:
+        h[1] = math.sqrt(sizes[0] * sizes[1]) / img_shape[0]
+        w[1] = math.sqrt(sizes[0] * sizes[1]) / img_shape[1]
+        di += 1
     for i, r in enumerate(ratios):
         h[i+di] = sizes[0] / img_shape[0] / math.sqrt(r)
         w[i+di] = sizes[0] / img_shape[1] * math.sqrt(r)
     return y, x, h, w
+
+    # # Compute relative height and width.
+    # # Tries to follow the original implementation of SSD for the order.
+    # #适配二分类　减少anchorbox数量
+    # num_anchors = len(ratios)
+    # h = np.zeros((num_anchors, ), dtype=dtype)
+    # w = np.zeros((num_anchors, ), dtype=dtype)
+    # di = 0
+    # for i, r in enumerate(ratios):
+    #     h[i+di] = sizes[0] / img_shape[0] / math.sqrt(r)
+    #     w[i+di] = sizes[0] / img_shape[1] * math.sqrt(r)
+    # return y, x, h, w
 
 
 def ssd_anchors_all_layers(img_shape,
@@ -422,8 +428,8 @@ def ssd_multibox_layer(inputs,
     if normalization > 0:
         net = custom_layers.l2_normalization(net, scaling=True)
     # Number of anchors.
-    #num_anchors = len(sizes) + len(ratios)
-    num_anchors = len(ratios)
+    num_anchors = len(sizes) + len(ratios)
+    #num_anchors = len(ratios)
     # Location.
     num_loc_pred = num_anchors * 4
     loc_pred = slim.conv2d(net, num_loc_pred, [3, 3], activation_fn=None,#为何不使用激活函数
@@ -637,7 +643,8 @@ def ssd_losses(logits, localisations,
         nvalues_flat = tf.reshape(nvalues, [-1])
         # Number of negative entries to select.
         max_neg_entries = tf.cast(tf.reduce_sum(fnmask), tf.int32)
-        n_neg = tf.cast(negative_ratio * n_positives, tf.int32) + batch_size
+        print(negative_ratio)
+        n_neg = tf.cast(negative_ratio * n_positives, tf.int32)+batch_size
         n_neg = tf.minimum(n_neg, max_neg_entries)
 
         val, idxes = tf.nn.top_k(-nvalues_flat, k=n_neg)
@@ -650,7 +657,8 @@ def ssd_losses(logits, localisations,
         with tf.name_scope('cross_entropy_pos'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=gclasses)
-            loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
+            
+            loss = tf.div(tf.reduce_sum(loss * fpmask * negative_ratio), batch_size, name='value')
             tf.losses.add_loss(loss)
 
         with tf.name_scope('cross_entropy_neg'):

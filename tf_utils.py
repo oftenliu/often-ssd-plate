@@ -61,6 +61,7 @@ def reshape_list(l, shape=None):
 def print_configuration(flags, ssd_params, data_sources, save_dir=None):
     """Print the training configuration.
     """
+
     def print_config(stream=None):
         print('\n# =========================================================================== #', file=stream)
         print('# Training | Evaluation flags:', file=stream)

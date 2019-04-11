@@ -63,7 +63,7 @@ tf.app.flags.DEFINE_boolean(
 # Main evaluation flags.
 # =========================================================================== #
 tf.app.flags.DEFINE_integer(
-    'num_classes', 21, 'Number of classes to use in the dataset.')
+    'num_classes', 2, 'Number of classes to use in the dataset.')
 tf.app.flags.DEFINE_integer(
     'batch_size', 1, 'The number of samples in each batch.')
 tf.app.flags.DEFINE_integer(
@@ -104,6 +104,15 @@ tf.app.flags.DEFINE_boolean(
 FLAGS = tf.app.flags.FLAGS
 
 
+def flatten(x):
+    result = []
+    for el in x:
+        if isinstance(el, tuple):
+            result.extend(flatten(el))
+        else:
+            result.append(el)
+    return result
+
 def main(_):
     if not FLAGS.dataset_dir:
         raise ValueError('You must supply the dataset directory with --dataset_dir')
@@ -117,7 +126,8 @@ def main(_):
         # =================================================================== #
         dataset = dataset_factory.get_dataset(
             FLAGS.dataset_name, FLAGS.dataset_split_name, FLAGS.dataset_dir)
-
+        print("11111111111111111111111111111")
+        print(dataset.num_samples)
         # Get the SSD network and its anchors.
         ssd_class = nets_factory.get_network(FLAGS.model_name)
         ssd_params = ssd_class.default_params._replace(num_classes=FLAGS.num_classes)
@@ -300,7 +310,9 @@ def main(_):
             num_batches = FLAGS.max_num_batches
         else:
             num_batches = math.ceil(dataset.num_samples / float(FLAGS.batch_size))
-
+        print("===================")
+        print(dataset.num_samples)
+        print(num_batches)
         if not FLAGS.wait_for_checkpoints:
             if tf.gfile.IsDirectory(FLAGS.checkpoint_path):
                 checkpoint_path = tf.train.latest_checkpoint(FLAGS.checkpoint_path)
@@ -315,7 +327,7 @@ def main(_):
                 checkpoint_path=checkpoint_path,
                 logdir=FLAGS.eval_dir,
                 num_evals=num_batches,
-                eval_op=list(names_to_updates.values()),
+                eval_op=flatten(list(names_to_updates.values())),
                 variables_to_restore=variables_to_restore,
                 session_config=config)
             # Log time spent.
@@ -327,7 +339,7 @@ def main(_):
         else:
             checkpoint_path = FLAGS.checkpoint_path
             tf.logging.info('Evaluating %s' % checkpoint_path)
-
+            print("===================================================")
             # Waiting loop.
             slim.evaluation.evaluation_loop(
                 master=FLAGS.master,

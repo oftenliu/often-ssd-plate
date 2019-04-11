@@ -24,7 +24,7 @@ from tensorflow.python.ops import control_flow_ops
 
 from preprocessing import tf_image
 from nets import ssd_common
-
+import random
 slim = tf.contrib.slim
 
 # Resizing strategies.
@@ -268,10 +268,11 @@ def preprocess_for_train(image, labels, bboxes,
 
         # Distort image and bounding boxes.
         dst_image = image
-        dst_image, labels, bboxes, distort_bbox = \
-            distorted_bounding_box_crop(image, labels, bboxes,
-                                        min_object_covered=MIN_OBJECT_COVERED,
-                                        aspect_ratio_range=CROP_RATIO_RANGE)
+        if random.random() > 0.9:
+            dst_image, labels, bboxes, distort_bbox = \
+                distorted_bounding_box_crop(image, labels, bboxes,
+                                            min_object_covered=MIN_OBJECT_COVERED,
+                                            aspect_ratio_range=CROP_RATIO_RANGE)
         # Resize image to output size.
         dst_image = tf_image.resize_image(dst_image, out_shape,
                                           method=tf.image.ResizeMethod.BILINEAR,

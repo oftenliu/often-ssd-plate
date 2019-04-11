@@ -76,8 +76,8 @@ def bboxes_draw_on_img(img, classes, scores, bboxes, colors, thickness=2):
         cv2.rectangle(img, p1[::-1], p2[::-1], color, thickness)
         # Draw text...
         s = '%s/%.3f' % (classes[i], scores[i])
-        p1 = (p1[0]-5, p1[1])
-        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_DUPLEX, 0.4, color, 1)
+        p1 = (p1[0]-10, p1[1] + 5)
+        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_DUPLEX, 1, color, 1)
 
 
 # =========================================================================== #
