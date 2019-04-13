@@ -338,3 +338,5 @@ python eval_image_classifier.py \
 python3 train_ssd_network.py     --train_dir=./log1/     --dataset_dir=./ccpd_tfrecord/     --dataset_name=pascalvoc_2012-dataset_split_name=train     --model_name=ssd_300_vgg        --save_summaries_secs=60     --save_interval_secs=600     --weight_decay=0.0005     --optimizer=adam     --learning_rate=0.001
 
 python3 tf_convert_data.py --dataset_name=pascalvoc --dataset_dir=../platedata/train/ --output_name=ccpd_train --output_dir=./ccpd_tfrecord
+
+ python3 eval_ssd_network.py --eval_dir=./evallog --dataset_dir=./ccpd_test_tfrecord/ --dataset_name=pascalvoc_2012 --dataset_spilt_name=test --model_name=ssd_300_vgg --checkpoint_path=./log  --batch_size=1

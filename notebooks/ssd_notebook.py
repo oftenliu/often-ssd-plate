@@ -10,16 +10,54 @@ slim = tf.contrib.slim
 #matplotlib inline
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-
+import matplotlib.cm as cm
 import sys
 sys.path.append('../')
 from nets import ssd_vgg_300, ssd_common, np_methods
 from preprocessing import ssd_vgg_preprocessing
 from notebooks import visualization
 
+import utils
 
 
 
+def plot_conv_output(conv_img, plot_dir, name, filters_all=True, filters=[0]):
+    w_min = np.min(conv_img)
+    w_max = np.max(conv_img)
+
+    # get number of convolutional filters
+    if filters_all:
+        num_filters = conv_img.shape[3]
+        filters = range(conv_img.shape[3])
+    else:
+        num_filters = len(filters)
+
+    # get number of grid rows and columns
+    grid_r, grid_c = utils.get_grid_dim(num_filters)
+
+    # create figure and axes
+    fig, axes = plt.subplots(min([grid_r, grid_c]),
+                             max([grid_r, grid_c]))
+
+    # iterate filters
+    if num_filters == 1:
+        img = conv_img[0, :, :, filters[0]]
+        axes.imshow(img, vmin=w_min, vmax=w_max, interpolation='bicubic', cmap=cm.hot)
+        # remove any labels from the axes
+        axes.set_xticks([])
+        axes.set_yticks([])
+    else:
+        for l, ax in enumerate(axes.flat):
+            # get a single image
+            img = conv_img[0, :, :, filters[l]]
+            # put it on the grid
+            ax.imshow(img, vmin=w_min, vmax=w_max, interpolation='bicubic', cmap=cm.hot)
+            # remove any labels from the axes
+            ax.set_xticks([])
+            ax.set_yticks([])
+    # save figure
+    plt.savefig(os.path.join(plot_dir, '{}.png'.format(name)), bbox_inches='tight')
+    plt.close() 
 def traverse(f,imageset):
     fs = os.listdir(f)
     for f1 in fs:
@@ -56,7 +94,7 @@ with slim.arg_scope(ssd_net.arg_scope(data_format=data_format)):
     predictions, localisations, _, end_points = ssd_net.net(image_4d, is_training=False, reuse=reuse)
 
 # Restore SSD model.
-ckpt_filename = '../log4/model.ckpt-130001'
+ckpt_filename = '../trainlog/log4/model.ckpt-130001'
 # ckpt_filename = '../checkpoints/VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt'
 isess.run(tf.global_variables_initializer())
 saver = tf.train.Saver()
@@ -84,31 +122,51 @@ def process_image(img, select_threshold=0.85, nms_threshold=0.85, net_shape=(300
     rbboxes = np_methods.bboxes_resize(rbbox_img, rbboxes)
     return rclasses, rscores, rbboxes,rend_points
 
-path = '../noplate/'
-savepath = '../res/'
+path = '../test/featuretest/'
+
+
+savepath = '../test/output/result/'
+PLOT_DIR = '../test/output/feature/'
 dataset = []
 traverse(path,dataset)
 image_size = len(dataset)
 
+# make path to output folder
 
+
+
+# create directory if does not exist, otherwise empty it
+
+
+
+
+visualize_layers = ['block1','block2','block3','block4','block5','block6','block7','block8','block9','block10','block11']
 for index in range(0,image_size):
     print(dataset[index])
     img = cv2.imread(dataset[index])
     # file = "../nores/plate3531.jpg"
     # img = cv2.imread(file)
     rclasses, rscores, rbboxes,rend_points =  process_image(img)
-
-    # for i, layer in enumerate(rend_points):
-    #     visualize_utils.create_dir(dir_prefix + layer)
-    #     for j in range(conv_out[i].shape[3]):
-    #         visualize.plot_conv_output(conv_out[i], dir_prefix + layer, str(j), filters_all=False, filters=[j])
+    iname = dataset[index].rsplit('/', 1)[-1]
 
 
+
+    plot_dir = os.path.join(PLOT_DIR, iname)
+    if  os.path.exists(plot_dir):
+        continue
+    for i, c in enumerate(rend_points):
+        #print(rend_points[c])
+        plot_dir_block = os.path.join(plot_dir, c)
+        utils.prepare_dir(plot_dir_block, empty=True)
+        for j in range(rend_points[c].shape[3]): #迭代channel
+            plot_conv_output(rend_points[c], plot_dir_block, str(j), filters_all=False, filters=[j])
 
 
     visualization.bboxes_draw_on_img(img, rclasses, rscores, rbboxes, visualization.colors_plasma)
-    iname = dataset[index].rsplit('/', 1)[-1]
-    file = savepath + iname
+    
+    file = plot_dir + '/' + iname
+
+    #file = savepath + iname
     cv2.imwrite(file,img)
     #visualization.plt_bboxes(img, rclasses, rscores, rbboxes)
         
