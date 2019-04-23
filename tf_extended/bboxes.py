@@ -504,5 +504,5 @@ def bboxes_intersection(bbox_ref, bboxes, name=None):
         # Volumes.
         inter_vol = h * w
         bboxes_vol = (bboxes[2] - bboxes[0]) * (bboxes[3] - bboxes[1])
-        scores = tfe_math.safe_divide(inter_vol, bboxes_vol, 'intersection')
+        scores = tfe_math.safe_divide(inter_vol, bboxes_vol, 'intersection')#计算box位于图片内的比例
         return scores

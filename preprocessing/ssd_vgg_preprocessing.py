@@ -39,9 +39,9 @@ _G_MEAN = 117.
 _B_MEAN = 104.
 
 # Some training pre-processing parameters.
-BBOX_CROP_OVERLAP = 0.5         # Minimum overlap to keep a bbox after cropping.
-MIN_OBJECT_COVERED = 0.25
-CROP_RATIO_RANGE = (0.6, 1.67)  # Distortion ratio during cropping.
+BBOX_CROP_OVERLAP = 0.5#0.5         # Minimum overlap to keep a bbox after cropping.
+MIN_OBJECT_COVERED = 0.3#0.25
+CROP_RATIO_RANGE = (0.67,1.8) #(0.6, 1.67)  # Distortion ratio during cropping.
 EVAL_SIZE = (300, 300)
 
 
@@ -192,7 +192,7 @@ def distorted_bounding_box_crop(image,
             where each coordinate is [0, 1) and the coordinates are arranged
             as [ymin, xmin, ymax, xmax]. If num_boxes is 0 then it would use the whole
             image.
-        min_object_covered: An optional `float`. Defaults to `0.1`. The cropped
+        min_object_covered: An optional `float`. Defaults to `0.1`. The cropped 裁剪出来的框必须含有min_object_covered比例的
             area of the image must contain at least this fraction of any bounding box
             supplied.
         aspect_ratio_range: An optional list of `floats`. The cropped area of the
@@ -217,7 +217,7 @@ def distorted_bounding_box_crop(image,
                 area_range=area_range,
                 max_attempts=max_attempts,
                 use_image_if_no_bounding_boxes=True)
-        distort_bbox = distort_bbox[0, 0]
+        distort_bbox = distort_bbox[0, 0] #boxes are encoded as [y_min, x_min, y_max, x_max]. The bounding box coordinates are floats in [0.0, 1.0] relative to the width and height of the underlying image.
 
         # Crop the image to the specified bounding box.
         cropped_image = tf.slice(image, bbox_begin, bbox_size)
@@ -226,7 +226,7 @@ def distorted_bounding_box_crop(image,
 
         # Update bounding boxes: resize and filter out.
         bboxes = tfe.bboxes_resize(distort_bbox, bboxes)
-        labels, bboxes = tfe.bboxes_filter_overlap(labels, bboxes,
+        labels, bboxes = tfe.bboxes_filter_overlap(labels, bboxes,#去除bounding bbox大部分已经处于图片外（位于图片内的面积比例低于threshold）的label和bbox
                                                    threshold=BBOX_CROP_OVERLAP,
                                                    assign_negative=False)
         return cropped_image, labels, bboxes, distort_bbox
@@ -268,7 +268,7 @@ def preprocess_for_train(image, labels, bboxes,
 
         # Distort image and bounding boxes.
         dst_image = image
-        if random.random() > 0.9:
+        if random.random() > 0:
             dst_image, labels, bboxes, distort_bbox = \
                 distorted_bounding_box_crop(image, labels, bboxes,
                                             min_object_covered=MIN_OBJECT_COVERED,
@@ -280,18 +280,19 @@ def preprocess_for_train(image, labels, bboxes,
         tf_summary_image(dst_image, bboxes, 'image_shape_distorted')
 
         # Randomly flip the image horizontally.
-        dst_image, bboxes = tf_image.random_flip_left_right(dst_image, bboxes)
+        #dst_image, bboxes = tf_image.random_flip_left_right(dst_image, bboxes)
 
         # Randomly distort the colors. There are 4 ways to do it.
-        dst_image = apply_with_random_selector(
-                dst_image,
-                lambda x, ordering: distort_color(x, ordering, fast_mode),
-                num_cases=4)
-        tf_summary_image(dst_image, bboxes, 'image_color_distorted')
+        # dst_image = apply_with_random_selector(
+        #         dst_image,
+        #         lambda x, ordering: distort_color(x, ordering, fast_mode),
+        #         num_cases=4)
+        # tf_summary_image(dst_image, bboxes, 'image_color_distorted')
 
         # Rescale to VGG input scale.
-        image = dst_image * 255.
-        image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
+        #image = dst_image * 255.
+        image = dst_image
+        #image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
         # Image data format.
         if data_format == 'NCHW':
             image = tf.transpose(image, perm=(2, 0, 1))
@@ -314,9 +315,10 @@ def preprocess_for_eval(image, labels, bboxes,
     """
     with tf.name_scope(scope):
         if image.get_shape().ndims != 3:
-            raise ValueError('Input must be of size [height, width, C>0]')
+            raise ValueError('Input must be of size [height, width, C>0]') 
 
         image = tf.to_float(image)
+
         image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
 
         # Add image rectangle to bboxes.

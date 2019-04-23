@@ -30,7 +30,7 @@ from nets import nets_factory
 from preprocessing import preprocessing_factory
 
 slim = tf.contrib.slim
-
+import matplotlib.pyplot as plt
 # =========================================================================== #
 # Some default EVAL parameters
 # =========================================================================== #
@@ -156,7 +156,7 @@ def main(_):
                     common_queue_min=FLAGS.batch_size,
                     shuffle=False)
             # Get for SSD network: image, labels, bboxes.
-            [image, shape, glabels, gbboxes] = provider.get(['image', 'shape',
+            [gimage, shape, glabels, gbboxes] = provider.get(['image', 'shape',
                                                              'object/label',
                                                              'object/bbox'])
             if FLAGS.remove_difficult:
@@ -166,7 +166,7 @@ def main(_):
 
             # Pre-processing image, labels and bboxes.
             image, glabels, gbboxes, gbbox_img = \
-                image_preprocessing_fn(image, glabels, gbboxes,
+                image_preprocessing_fn(gimage, glabels, gbboxes,
                                        out_shape=ssd_shape,
                                        data_format=DATA_FORMAT,
                                        resize=FLAGS.eval_resize,
@@ -193,11 +193,18 @@ def main(_):
             sess.run(ini_op)
             coord = tf.train.Coordinator()
             thread = tf.train.start_queue_runners(sess=sess,coord=coord)
-            plate_sizes = np.zeros((6,), dtype = np.int) 
+            plate_sizes = np.zeros((6,), dtype = np.int64) 
             plate_ratios = []
-            for i in range(1):#(209053):
+            widths = []
+            heights = []
+            for i in range(209):#(209053):
                 image,gscores,gbboxes = sess.run([b_image,b_gscores,b_gbboxes]) #输出第一维是输出层的数量:6 第二维是batch_size
-
+                # print(g_shape)
+                # print(ori_image.shape)
+                # cv2.imshow("origal",ori_image)
+                # cv2.waitKey(0)
+                # cv2.imshow("preimage",preimage)
+                # cv2.waitKey(0)                
                 for sample_index in range(len(gbboxes)):
                     sample = gbboxes[sample_index]
                     for object_index in range(len(sample)):
@@ -206,16 +213,20 @@ def main(_):
                         ymax = sample[object_index][2]
                         xmax = sample[object_index][3]
                         width = xmax - xmin
+                       
                         height = ymax -ymin
+                        #print(width,height)
+
                         plate_ratios.append(width/height)
+                        widths.append(width)
+                        heights.append(height)
+                        p1 = (int(xmin * 300), int(ymin * 300) )
+                        p2 = (int(xmax * 300), int(ymax * 300))
+                        #print(p1,p2)
+                        cv2.rectangle(image[sample_index], p1, p2, [0,255,255], 1)
+                    # cv2.imshow(str(sample_index),image[sample_index])
+                    # cv2.waitKey(0)
 
-                        p1 = (int(ymin * 300), int(xmin * 300))
-                        p2 = (int(ymax * 300), int(xmax * 300))
-
-                        cv2.rectangle(image[sample_index], p1[::-1], p2[::-1], [0,255,255], 1)
-
-                    cv2.imshow(str(sample_index),image[sample_index])
-                    cv2.waitKey()
 
 
                 inputlayer_size = len(gscores)                                
@@ -227,7 +238,7 @@ def main(_):
                     layer_samples_max = []
                     for sample_index in range(0,sample_size):
                         layer_samples_max.append( np.max(sample_score[sample_index]) )
-                        print("the layer "+ str(inputlayer_index)+" the sample " + str(sample_index) + " the max value is " +str(np.max(sample_score[sample_index])))
+                        #print("the layer "+ str(inputlayer_index)+" the sample " + str(sample_index) + " the max value is " +str(np.max(sample_score[sample_index])))
                     layers_samples_max.append(layer_samples_max)      
                 layers_samples_max = np.asarray(layers_samples_max).swapaxes(0,1)
                 sample_num = len(layers_samples_max)
@@ -235,18 +246,54 @@ def main(_):
                 for sample_index in range(sample_num):
                     max_value = np.max(layers_samples_max[sample_index])
                     max_index = np.where(layers_samples_max[sample_index]==max_value)
-                    print(max_index)
+                    #print(max_index)
                     if max_value == 0:
                         continue
                     
                     index_size =  len(max_index)
                     for index in range(index_size):
                         value = max_index[index]
-                        print(value)
+                        #print(value)
                         plate_sizes[value] = plate_sizes[value] + 1
-                print(layers_samples_max)
+                #print(layers_samples_max)
             #print(gscores)
-            print(plate_sizes)
+            min_ratio = np.nanmin(np.asarray(plate_ratios))
+            max_ratio = np.nanmax(np.asarray(plate_ratios))
+            print(min_ratio,max_ratio)
+            da = np.arange(min_ratio, max_ratio, 0.1) 
+            print(da.size) 
+
+            fig = plt.figure(22)
+            ax = plt.subplot(221)          
+            plt.hist(plate_ratios,da.size)
+            ax.set_title("bins=%d,title=ratio(width/height)"%da.size)
+
+
+            min_width = np.min(np.asarray(widths))
+            max_width = np.max(np.asarray(widths))
+            da = np.arange(min_width, max_width, 0.1)   
+            ax = plt.subplot(222)              
+            plt.hist(np.asarray(widths),da)
+            ax.set_title("bins=%d,title=width"%da.size)
+
+            min_height = np.min(np.asarray(heights))
+            max_height = np.max(np.asarray(heights))
+            da = np.arange(min_height, max_height, 0.1)      
+            ax = plt.subplot(223)        
+            plt.hist(np.asarray(heights),da)            
+            ax.set_title("bins=%d,title=height"%da.size)
+
+
+            da = np.arange(0, len(plate_sizes), 1)   
+            ax = plt.subplot(224)    
+            plt.plot(da, plate_sizes, 's')
+            ax.set_title("title=sizes")
+            fig.tight_layout()        
+            plt.show()            
+                
+            plt.savefig("./4.png")
+
+            
             coord.request_stop()
 
             coord.join(thread)
