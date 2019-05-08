@@ -324,17 +324,17 @@ def random_crop_image(image, labels, bboxes):
     x_min = tf.maximum(tf.to_int32(tf.to_float(image_width) * x_min), 0)
     x_max = tf.minimum(tf.to_int32(tf.to_float(image_width) * x_max),image_width)
 
-    xmin_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
-    xmax_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
+    xmin_rand = tf.random_uniform((),minval = 1,maxval = 15,dtype=tf.int32)
+    xmax_rand = tf.random_uniform((),minval = 1,maxval = 15,dtype=tf.int32)
     xmin_c  = tf.maximum((x_max + x_min) // 2 - xmin_rand, 0)
-    xmax_c  = tf.maximum((x_max + x_min) // 2 + xmax_rand, image_width - 1)
+    xmax_c  = tf.minimum((x_max + x_min) // 2 + xmax_rand, image_width - 1)
 
     xc    = tf.random_uniform((),minval = xmin_c[0], maxval = xmax_c[0],dtype=tf.int32)
-
-    ymin_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
-    ymax_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
+    #xc    = tf.random_uniform((),minval = 225, maxval = 225,dtype=tf.int32)
+    ymin_rand = tf.random_uniform((),minval = 1,maxval = 15,dtype=tf.int32)
+    ymax_rand = tf.random_uniform((),minval = 1,maxval = 15,dtype=tf.int32)
     ymin_c  = tf.maximum((y_max + y_min) // 2 - ymin_rand, 0)
-    ymax_c  = tf.maximum((y_max + y_min) // 2 + ymax_rand, image_height - 1)
+    ymax_c  = tf.minimum((y_max + y_min) // 2 + ymax_rand, image_height - 1)
     yc    = tf.random_uniform((),minval = ymin_c[0], maxval = ymax_c[0],dtype=tf.int32)
 
     #确保crop的区域覆盖整个目标框
