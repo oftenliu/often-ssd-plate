@@ -467,29 +467,29 @@ def ssd_net(inputs,
     end_points = {}
     with tf.variable_scope(scope, 'ssd_300_vgg', [inputs], reuse=reuse):
         # Original VGG-16 blocks.
-        net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1')
+        net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1') #64x300x300
         end_points['block1'] = net
-        net = slim.max_pool2d(net, [2, 2], scope='pool1')
+        net = slim.max_pool2d(net, [2, 2], scope='pool1')#64x150x150
         # Block 2.
-        net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')
+        net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')#	128x150x150
         end_points['block2'] = net
-        net = slim.max_pool2d(net, [2, 2], scope='pool2')
+        net = slim.max_pool2d(net, [2, 2], scope='pool2')#128x75X75
         # Block 3.
-        net = slim.repeat(net, 3, slim.conv2d, 256, [3, 3], scope='conv3')
+        net = slim.repeat(net, 3, slim.conv2d, 256, [3, 3], scope='conv3')#256x75X75
         end_points['block3'] = net
-        net = slim.max_pool2d(net, [2, 2], scope='pool3')
+        net = slim.max_pool2d(net, [2, 2], scope='pool3')#256x38x38
         # Block 4.
         net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv4')
         end_points['block4'] = net
-        net = slim.max_pool2d(net, [2, 2], scope='pool4')
+        net = slim.max_pool2d(net, [2, 2], scope='pool4')#512x19x19
         # Block 5.
         net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv5')
         end_points['block5'] = net
-        net = slim.max_pool2d(net, [3, 3], stride=1, scope='pool5')
+        net = slim.max_pool2d(net, [3, 3], stride=1, scope='pool5')#512x19x19 此处stride为１
 
         # Additional SSD blocks.
         # Block 6: let's dilate the hell out of it!
-        net = slim.conv2d(net, 1024, [3, 3], rate=6, scope='conv6')
+        net = slim.conv2d(net, 1024, [3, 3], rate=6, scope='conv6')#空洞卷积,空洞率6　相当于kernel size = (15,15) 增大了感受野
         end_points['block6'] = net
         net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
         # Block 7: 1x1 conv. Because the fuck.
@@ -502,23 +502,23 @@ def ssd_net(inputs,
         with tf.variable_scope(end_point):
             net = slim.conv2d(net, 256, [1, 1], scope='conv1x1')
             net = custom_layers.pad2d(net, pad=(1, 1))
-            net = slim.conv2d(net, 512, [3, 3], stride=2, scope='conv3x3', padding='VALID')
+            net = slim.conv2d(net, 512, [3, 3], stride=2, scope='conv3x3', padding='VALID')#512x10x10
         end_points[end_point] = net
         end_point = 'block9'
         with tf.variable_scope(end_point):
             net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
             net = custom_layers.pad2d(net, pad=(1, 1))
-            net = slim.conv2d(net, 256, [3, 3], stride=2, scope='conv3x3', padding='VALID')
+            net = slim.conv2d(net, 256, [3, 3], stride=2, scope='conv3x3', padding='VALID')#128*5*5
         end_points[end_point] = net
         end_point = 'block10'
         with tf.variable_scope(end_point):
             net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-            net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
+            net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')#256*3*3
         end_points[end_point] = net
         end_point = 'block11'
         with tf.variable_scope(end_point):
             net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-            net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
+            net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')#256*1*1
         end_points[end_point] = net
 
         # Prediction and localisations layers.

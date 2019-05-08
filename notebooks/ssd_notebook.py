@@ -94,7 +94,7 @@ with slim.arg_scope(ssd_net.arg_scope(data_format=data_format)):
     predictions, localisations, _, end_points = ssd_net.net(image_4d, is_training=False, reuse=reuse)
 
 # Restore SSD model.
-ckpt_filename = '../trainlog/log4/model.ckpt-130001'
+ckpt_filename = '../trainlog/log7/model.ckpt-21555'
 # ckpt_filename = '../checkpoints/VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt'
 isess.run(tf.global_variables_initializer())
 saver = tf.train.Saver()
@@ -104,7 +104,7 @@ saver.restore(isess, ckpt_filename)
 ssd_anchors = ssd_net.anchors(net_shape)
 
 # Main image processing routine.
-def process_image(img, select_threshold=0.85, nms_threshold=0.85, net_shape=(300, 300)):
+def process_image(img, select_threshold=0.5, nms_threshold=0.5, net_shape=(300, 300)):
     # Run SSD network.
     rimg, rpredictions, rlocalisations, rend_points,rbbox_img = isess.run([image_4d, predictions, localisations, end_points,bbox_img],
                                                               feed_dict={img_input: img})
@@ -122,7 +122,7 @@ def process_image(img, select_threshold=0.85, nms_threshold=0.85, net_shape=(300
     rbboxes = np_methods.bboxes_resize(rbbox_img, rbboxes)
     return rclasses, rscores, rbboxes,rend_points
 
-path = '../test/featuretest/'
+path = '../test/test_image/'
 
 
 savepath = '../test/output/result/'
@@ -143,30 +143,31 @@ image_size = len(dataset)
 visualize_layers = ['block1','block2','block3','block4','block5','block6','block7','block8','block9','block10','block11']
 for index in range(0,image_size):
     print(dataset[index])
-    img = cv2.imread(dataset[index])
-    # file = "../nores/plate3531.jpg"
-    # img = cv2.imread(file)
+    #img = cv2.imread(dataset[index])
+    file = "../test/test_image/plate441.jpg"
+    img = cv2.imread(file)
+    #img = img[600:2592,1:2048] 
     rclasses, rscores, rbboxes,rend_points =  process_image(img)
     iname = dataset[index].rsplit('/', 1)[-1]
 
 
 
-    plot_dir = os.path.join(PLOT_DIR, iname)
-    if  os.path.exists(plot_dir):
-        continue
-    for i, c in enumerate(rend_points):
-        #print(rend_points[c])
-        plot_dir_block = os.path.join(plot_dir, c)
-        utils.prepare_dir(plot_dir_block, empty=True)
-        for j in range(rend_points[c].shape[3]): #迭代channel
-            plot_conv_output(rend_points[c], plot_dir_block, str(j), filters_all=False, filters=[j])
+    # plot_dir = os.path.join(PLOT_DIR, iname)
+    # if  os.path.exists(plot_dir):
+    #     continue
+    # for i, c in enumerate(rend_points):
+    #     #print(rend_points[c])
+    #     plot_dir_block = os.path.join(plot_dir, c)
+    #     utils.prepare_dir(plot_dir_block, empty=True)
+    #     for j in range(rend_points[c].shape[3]): #迭代channel
+    #         plot_conv_output(rend_points[c], plot_dir_block, str(j), filters_all=False, filters=[j])
 
 
     visualization.bboxes_draw_on_img(img, rclasses, rscores, rbboxes, visualization.colors_plasma)
     
-    file = plot_dir + '/' + iname
+    #file = plot_dir + '/' + iname
 
-    #file = savepath + iname
-    cv2.imwrite(file,img)
-    #visualization.plt_bboxes(img, rclasses, rscores, rbboxes)
+    file = savepath + iname
+    #cv2.imwrite(file,img)
+    visualization.plt_bboxes(img, rclasses, rscores, rbboxes)
         

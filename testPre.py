@@ -11,9 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#　分析原始数据的尺度分布
-#
-#
 # ==============================================================================
 """Generic evaluation script that evaluates a SSD model
 on a given dataset."""
@@ -155,10 +152,9 @@ def main(_):
             with tf.name_scope(FLAGS.dataset_name + '_data_provider'):
                 provider = slim.dataset_data_provider.DatasetDataProvider(
                     dataset,
-                    num_readers=4,
-                    common_queue_capacity=20 * FLAGS.batch_size,
-                    common_queue_min=10 * FLAGS.batch_size,
-                    shuffle=True)
+                    common_queue_capacity=2 * FLAGS.batch_size,
+                    common_queue_min=FLAGS.batch_size,
+                    shuffle=False)
             # Get for SSD network: image, labels, bboxes.
             [gimage, shape, glabels, gbboxes] = provider.get(['image', 'shape',
                                                              'object/label',
@@ -168,164 +164,27 @@ def main(_):
             else:
                 gdifficults = tf.zeros(tf.shape(glabels), dtype=tf.int64)
 
-
-            # Get for SSD network: image, labels, bboxes.
-            [image, shape, glabels, gbboxes] = provider.get(['image', 'shape',
-                                                             'object/label',
-                                                             'object/bbox'])
-###test集
-            # # Pre-processing image, labels and bboxes.
-            # image, glabels, gbboxes, gbbox_img = \
-            #     image_preprocessing_fn(gimage, glabels, gbboxes,
-            #                            out_shape=ssd_shape,
-            #                            data_format=DATA_FORMAT,
-            #                            resize=FLAGS.eval_resize,
-            #                            difficults=None)
-            # # Encode groundtruth labels and bboxes.
-            # gclasses, glocalisations, gscores = \
-            #     ssd_net.bboxes_encode(glabels, gbboxes, ssd_anchors)
-            # batch_shape = [1] * 5 + [len(ssd_anchors)] * 3
-
-            # # Evaluation batch.
-            # r = tf.train.batch(
-            #     tf_utils.reshape_list([image, glabels, gbboxes, gdifficults, gbbox_img,
-            #                            gclasses, glocalisations, gscores]),
-            #     batch_size=FLAGS.batch_size,
-            #     num_threads=FLAGS.num_preprocessing_threads,
-            #     capacity=5 * FLAGS.batch_size,
-            #     dynamic_pad=True)
-
-            # (b_image, b_glabels, b_gbboxes, b_gdifficults, b_gbbox_img, b_gclasses,
-            #  b_glocalisations, b_gscores) = tf_utils.reshape_list(r, batch_shape)
-
-### 训练集
+            # Pre-processing image, labels and bboxes.
             image, glabels, gbboxes = \
                 image_preprocessing_fn(gimage, glabels, gbboxes,
                                        out_shape=ssd_shape,
                                        data_format=DATA_FORMAT)
-            # Encode groundtruth labels and bboxes.
-            gclasses, glocalisations, gscores = \
-                ssd_net.bboxes_encode(glabels, gbboxes, ssd_anchors)
-            batch_shape = [1] * 4 + [len(ssd_anchors)] * 3
-            # Training batches and queue.
-            r = tf.train.batch(
-                tf_utils.reshape_list([image, glabels,gbboxes,gdifficults,gclasses,glocalisations, gscores]),
-                batch_size=FLAGS.batch_size,
-                num_threads=FLAGS.num_preprocessing_threads,
-                capacity=5 * FLAGS.batch_size,
-                dynamic_pad=True)
-            b_image,b_glabels, b_gbboxes,b_gdifficults,b_gclasses, b_glocalisations, b_gscores = \
-                tf_utils.reshape_list(r, batch_shape)
-
-
 
         with tf.Session() as sess:
             ini_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
             sess.run(ini_op)
             coord = tf.train.Coordinator()
             thread = tf.train.start_queue_runners(sess=sess,coord=coord)
-            plate_sizes = np.zeros((6,), dtype = np.int64) 
-            plate_ratios = []
-            widths = []
-            heights = []
-            for i in range(209053):#(209053):
-                o_image,o_shape,o_scores,o_bboxes = sess.run([b_image,shape,b_gscores,b_gbboxes]) #输出第一维是输出层的数量:6 第二维是batch_size
-                # print(g_shape)
-                # print(o_shape)
-                # print(o_image.shape)
-                # cv2.imshow("origal",ori_image)
-                # cv2.waitKey(0)
-                # cv2.imshow("preimage",o_image)
-                # cv2.waitKey(0)                
-                #print(o_bboxes)
-                for sample_index in range(len(o_bboxes)):
-                    sample = o_bboxes[sample_index]
-                    for object_index in range(len(sample)):
-                        ymin = sample[object_index][0]
-                        xmin = sample[object_index][1]
-                        ymax = sample[object_index][2]
-                        xmax = sample[object_index][3]
-                        width = xmax - xmin
-                       
-                        height = ymax -ymin
-                        #print(width,height)
 
-                        plate_ratios.append(width/height)
-                        widths.append(width)
-                        heights.append(height)
-                        p1 = (int(xmin * 300), int(ymin * 300) )
-                        p2 = (int(xmax * 300), int(ymax * 300))
-                        #print(p1,p2)
-                        cv2.rectangle(o_image[sample_index], p1, p2, [0,255,255], 1)
-                    # cv2.imshow(str(sample_index),o_image[sample_index])
-                    # cv2.waitKey(0)
-
-
-
-                inputlayer_size = len(o_scores)                                
-                layers_samples_max = []
-                for inputlayer_index in range(0,inputlayer_size):
-
-                    sample_size = len(o_scores[inputlayer_index])
-                    sample_score = o_scores[inputlayer_index]
-                    layer_samples_max = []
-                    for sample_index in range(0,sample_size):
-                        layer_samples_max.append( np.max(sample_score[sample_index]) )
-                        #print("the layer "+ str(inputlayer_index)+" the sample " + str(sample_index) + " the max value is " +str(np.max(sample_score[sample_index])))
-                    layers_samples_max.append(layer_samples_max)      
-                layers_samples_max = np.asarray(layers_samples_max).swapaxes(0,1)
-                sample_num = len(layers_samples_max)
-
-                for sample_index in range(sample_num):
-                    max_value = np.max(layers_samples_max[sample_index])
-                    max_index = np.where(layers_samples_max[sample_index]==max_value)
-                    #print(max_index)
-                    if max_value == 0:
-                        continue
-                    
-                    index_size =  len(max_index)
-                    for index in range(index_size):
-                        value = max_index[index]
-                        #print(value)
-                        plate_sizes[value] = plate_sizes[value] + 1
-                #print(layers_samples_max)
-            #print(gscores)
-            min_ratio = np.nanmin(np.asarray(plate_ratios))
-            max_ratio = np.nanmax(np.asarray(plate_ratios))
-            #print(min_ratio,max_ratio)
-            da = np.arange(min_ratio, max_ratio, 0.1) 
-            #print(da.size) 
-
-            fig = plt.figure(22)
-            ax = plt.subplot(221)          
-            plt.hist(plate_ratios,da.size)
-            ax.set_title("bins=%d,title=ratio(width/height)"%da.size)
-
-
-            min_width = np.min(np.asarray(widths))
-            max_width = np.max(np.asarray(widths))
-            da = np.arange(min_width, max_width, 0.1)   
-            ax = plt.subplot(222)              
-            plt.hist(np.asarray(widths),da)
-            ax.set_title("bins=%d,title=width"%da.size)
-
-            min_height = np.min(np.asarray(heights))
-            max_height = np.max(np.asarray(heights))
-            da = np.arange(min_height, max_height, 0.1)      
-            ax = plt.subplot(223)        
-            plt.hist(np.asarray(heights),da)            
-            ax.set_title("bins=%d,title=height"%da.size)
-
-
-            da = np.arange(0, len(plate_sizes), 1)   
-            ax = plt.subplot(224)    
-            plt.plot(da, plate_sizes, 's')
-            ax.set_title("title=sizes")
-            fig.tight_layout()        
-            #plt.show()            
-                
-            plt.savefig("./4.png")
-
+            for i in range(500):#(209053):
+                ori_image,preimage,g_shape = sess.run([gimage,image,shape]) #输出第一维是输出层的数量:6 第二维是batch_size
+                print(ori_image)
+                print(preimage)
+                cv2.imshow("origal",ori_image)
+                cv2.waitKey(0)
+                cv2.imshow("preimage",preimage)
+                cv2.waitKey(0)                
+  
             
             coord.request_stop()
 

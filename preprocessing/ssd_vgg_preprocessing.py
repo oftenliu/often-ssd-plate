@@ -178,7 +178,7 @@ def distorted_bounding_box_crop(image,
                                 bboxes,
                                 min_object_covered=0.3,
                                 aspect_ratio_range=(0.9, 1.1),
-                                area_range=(0.1, 1.0),
+                                area_range=(0.05, 1),
                                 max_attempts=200,
                                 clip_bboxes=True,
                                 scope=None):
@@ -209,6 +209,7 @@ def distorted_bounding_box_crop(image,
     with tf.name_scope(scope, 'distorted_bounding_box_crop', [image, bboxes]):
         # Each bounding box has shape [1, num_boxes, box coords] and
         # the coordinates are ordered [ymin, xmin, ymax, xmax].
+
         bbox_begin, bbox_size, distort_bbox = tf.image.sample_distorted_bounding_box(
                 tf.shape(image),
                 bounding_boxes=tf.expand_dims(bboxes, 0),
@@ -230,6 +231,157 @@ def distorted_bounding_box_crop(image,
                                                    threshold=BBOX_CROP_OVERLAP,
                                                    assign_negative=False)
         return cropped_image, labels, bboxes, distort_bbox
+
+def _random_integer(minval, maxval, seed):
+  """Returns a random 0-D tensor between minval and maxval.
+  Args:
+    minval: minimum value of the random tensor.
+    maxval: maximum value of the random tensor.
+    seed: random seed.
+  Returns:
+    A random 0-D tensor between minval and maxval.
+  """
+  return tf.random_uniform(
+      [], minval=minval, maxval=maxval, dtype=tf.int32, seed=seed)
+
+
+def Correction_bboxes_coordinate(bboxes,new_window):
+    win_height = new_window[2] - new_window[0]
+    win_width = new_window[3] - new_window[1]
+
+    bboxes = bboxes - [new_window[0], new_window[1], new_window[0], new_window[1]]
+
+    y_min, x_min, y_max, x_max = tf.split(
+        bboxes, num_or_size_splits=4, axis=1)
+    y_min = 1.0 / win_height * y_min
+    y_max = 1.0 / win_height * y_max
+    x_min = 1.0 / win_width * x_min
+    x_max = 1.0 / win_width * x_max
+    bboxes = tf.concat([y_min, x_min, y_max, x_max], 1)
+    return bboxes
+#将目标padding到1320*1160
+def pad_image(image,bboxes):
+    dstwidth = 2000
+    dstheight = 2000
+
+    image_shape = tf.shape(image)
+    image_height = image_shape[0]
+    image_width = image_shape[1]
+
+
+    target_image_size = tf.maximum(tf.stack([dstheight, dstwidth]),
+                                tf.stack([image_height, image_width]))
+
+    offset_height = tf.random_uniform([], minval=0, maxval=target_image_size[0] - image_height, dtype=tf.int32)
+
+    offset_width = tf.random_uniform([], minval=0, maxval=target_image_size[1] -image_width, dtype=tf.int32)
+
+    new_image = tf.image.pad_to_bounding_box(
+        image,
+        offset_height=offset_height,
+        offset_width=offset_width,
+        target_height=target_image_size[0],
+        target_width=target_image_size[1])
+
+
+    pad_color = tf.reduce_mean(image, axis=[0, 1])#填充区域的值
+    image_ones = tf.ones_like(image)
+    image_ones_padded = tf.image.pad_to_bounding_box(
+        image_ones,
+        offset_height=offset_height,#向上界pad的行数
+        offset_width=offset_width, #向左界pad的列数
+        target_height=target_image_size[0],
+        target_width=target_image_size[1])
+
+    image_color_padded = (1.0 - image_ones_padded) * pad_color
+    new_image += image_color_padded
+
+    new_window = tf.to_float(
+        tf.stack([
+            -offset_height, -offset_width, target_image_size[0] - offset_height,
+            target_image_size[1] - offset_width
+        ]))
+    new_window /= tf.to_float(
+        tf.stack([image_height, image_width, image_height, image_width]))
+
+    bboxes = Correction_bboxes_coordinate(bboxes,new_window)
+
+    return new_image,bboxes
+
+def random_crop_image(image, labels, bboxes):
+
+    ref_ind = tf.random_uniform((),minval = 0,maxval = tf.shape(bboxes)[0],dtype=tf.int32)
+    ref_box = bboxes[ref_ind]
+
+    image_shape = tf.shape(image)
+    image_height = image_shape[0]
+    image_width = image_shape[1]
+
+    y_min, x_min, y_max, x_max = tf.split(
+        ref_box, num_or_size_splits=4)
+    y_min = tf.maximum(tf.to_int32(tf.to_float(image_height) * y_min),0)
+    y_max = tf.minimum(tf.to_int32(tf.to_float(image_height) * y_max),image_height)
+    x_min = tf.maximum(tf.to_int32(tf.to_float(image_width) * x_min), 0)
+    x_max = tf.minimum(tf.to_int32(tf.to_float(image_width) * x_max),image_width)
+
+    xmin_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
+    xmax_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
+    xmin_c  = tf.maximum((x_max + x_min) // 2 - xmin_rand, 0)
+    xmax_c  = tf.maximum((x_max + x_min) // 2 + xmax_rand, image_width - 1)
+
+    xc    = tf.random_uniform((),minval = xmin_c[0], maxval = xmax_c[0],dtype=tf.int32)
+
+    ymin_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
+    ymax_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
+    ymin_c  = tf.maximum((y_max + y_min) // 2 - ymin_rand, 0)
+    ymax_c  = tf.maximum((y_max + x_min) // 2 + ymax_rand, image_height - 1)
+    yc    = tf.random_uniform((),minval = ymin_c[0], maxval = ymax_c[0],dtype=tf.int32)
+
+    #确保crop的区域覆盖整个目标框
+    min_left = xc - x_min
+    min_top = yc - y_min
+    min_right = x_max - xc
+    min_down = y_max - yc
+
+    #裁剪的边界
+    max_left = xc    
+    max_top = yc    
+    max_right = image_width - xc
+    max_down = image_height - yc
+
+    offset_left = tf.random_uniform((),minval = min_left[0],maxval = max_left,dtype=tf.int32)
+    offset_top = tf.random_uniform((),minval = min_top[0], maxval = max_top,dtype = tf.int32)
+    offset_right = tf.random_uniform((),minval = min_right[0],maxval = max_right,dtype = tf.int32)
+    offset_down = tf.random_uniform((),minval = min_down[0],maxval = max_down,dtype = tf.int32)
+
+    #裁剪区域在image中的坐标
+    crop_xmin = xc - offset_left
+    crop_xmax = xc + offset_right
+    crop_ymin = yc - offset_top
+    crop_ymax = yc + offset_down
+
+    dst_image = tf.image.crop_to_bounding_box(
+        image,
+        crop_ymin,
+        crop_xmin,
+        crop_ymax - crop_ymin,
+        crop_xmax - crop_xmin
+    )
+
+    new_window = tf.to_float(
+        tf.stack([
+            crop_ymin, crop_xmin, crop_ymax,crop_xmax
+        ]))
+    new_window /= tf.to_float(
+        tf.stack([image_height, image_width, image_height, image_width]))
+
+    bboxes = Correction_bboxes_coordinate(bboxes,new_window)
+    labels, bboxes = tfe.bboxes_filter_overlap(labels, bboxes,#去除bounding bbox大部分已经处于图片外（位于图片内的面积比例低于threshold）的label和bbox
+                                                   threshold=BBOX_CROP_OVERLAP,
+                                                   assign_negative=False)
+
+    return dst_image,labels,bboxes
+
 
 
 def preprocess_for_train(image, labels, bboxes,
@@ -267,36 +419,46 @@ def preprocess_for_train(image, labels, bboxes,
         #                                                     bboxes)
 
         # Distort image and bounding boxes.
+        
         dst_image = image
-        if random.random() > 0:
-            dst_image, labels, bboxes, distort_bbox = \
-                distorted_bounding_box_crop(image, labels, bboxes,
-                                            min_object_covered=MIN_OBJECT_COVERED,
-                                            aspect_ratio_range=CROP_RATIO_RANGE)
+        dst_image,bboxes = pad_image(dst_image,bboxes)
+
+        dst_image, labels, bboxes = random_crop_image(dst_image, labels, bboxes)
+        # dst_image, labels, bboxes, distort_bbox = \
+        #     distorted_bounding_box_crop(dst_image, labels, bboxes,
+        #                                 min_object_covered=MIN_OBJECT_COVERED,
+        #                                 aspect_ratio_range=CROP_RATIO_RANGE,
+        #                                 )
+
         # Resize image to output size.
         dst_image = tf_image.resize_image(dst_image, out_shape,
                                           method=tf.image.ResizeMethod.BILINEAR,
                                           align_corners=False)
         tf_summary_image(dst_image, bboxes, 'image_shape_distorted')
 
-        # Randomly flip the image horizontally.
-        #dst_image, bboxes = tf_image.random_flip_left_right(dst_image, bboxes)
+        # # Randomly flip the image horizontally.
+        dst_image, bboxes = tf_image.random_flip_left_right(dst_image, bboxes)
 
-        # Randomly distort the colors. There are 4 ways to do it.
+        # # Randomly distort the colors. There are 4 ways to do it.
         # dst_image = apply_with_random_selector(
         #         dst_image,
         #         lambda x, ordering: distort_color(x, ordering, fast_mode),
         #         num_cases=4)
         # tf_summary_image(dst_image, bboxes, 'image_color_distorted')
 
-        # Rescale to VGG input scale.
-        #image = dst_image * 255.
+        # # Rescale to VGG input scale.
+        # image = dst_image * 255.
+        
+        # image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
+
         image = dst_image
-        #image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
+
         # Image data format.
         if data_format == 'NCHW':
             image = tf.transpose(image, perm=(2, 0, 1))
+
         return image, labels, bboxes
+
 
 
 def preprocess_for_eval(image, labels, bboxes,
