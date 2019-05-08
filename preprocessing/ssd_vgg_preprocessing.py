@@ -334,7 +334,7 @@ def random_crop_image(image, labels, bboxes):
     ymin_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
     ymax_rand = tf.random_uniform((),minval = 0,maxval = 15,dtype=tf.int32)
     ymin_c  = tf.maximum((y_max + y_min) // 2 - ymin_rand, 0)
-    ymax_c  = tf.maximum((y_max + x_min) // 2 + ymax_rand, image_height - 1)
+    ymax_c  = tf.maximum((y_max + y_min) // 2 + ymax_rand, image_height - 1)
     yc    = tf.random_uniform((),minval = ymin_c[0], maxval = ymax_c[0],dtype=tf.int32)
 
     #确保crop的区域覆盖整个目标框
@@ -440,18 +440,18 @@ def preprocess_for_train(image, labels, bboxes,
         dst_image, bboxes = tf_image.random_flip_left_right(dst_image, bboxes)
 
         # # Randomly distort the colors. There are 4 ways to do it.
-        # dst_image = apply_with_random_selector(
-        #         dst_image,
-        #         lambda x, ordering: distort_color(x, ordering, fast_mode),
-        #         num_cases=4)
-        # tf_summary_image(dst_image, bboxes, 'image_color_distorted')
+        dst_image = apply_with_random_selector(
+                dst_image,
+                lambda x, ordering: distort_color(x, ordering, fast_mode),
+                num_cases=4)
+        tf_summary_image(dst_image, bboxes, 'image_color_distorted')
 
         # # Rescale to VGG input scale.
-        # image = dst_image * 255.
+        image = dst_image * 255.
         
-        # image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
+        image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
 
-        image = dst_image
+        #image = dst_image
 
         # Image data format.
         if data_format == 'NCHW':
